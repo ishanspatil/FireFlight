@@ -27,14 +27,30 @@ const satelliteGeometry = new THREE.BoxGeometry(satelliteSize, satelliteSize, sa
 const satelliteMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd, flatShading: true });
 const satellite = new THREE.Mesh(satelliteGeometry, satelliteMaterial);
 
-// Orbit group to handle rotation
-const orbitRadius = 3;
-const orbitGroup = new THREE.Group();
+// Orbit groups to handle rotation and tilt
+const orbitRadius = earthRadius + 0.2; // Low Earth Orbit altitude
+const orbitGroup = new THREE.Group(); // handles orbit plane orientation
+const satelliteOrbit = new THREE.Group(); // handles satellite revolution
+
+// Create a translucent line showing the orbit path
+const orbitPathPoints = [];
+const segments = 128;
+for (let i = 0; i < segments; i++) {
+  const angle = (i / segments) * Math.PI * 2;
+  orbitPathPoints.push(new THREE.Vector3(Math.cos(angle) * orbitRadius, 0, Math.sin(angle) * orbitRadius));
+}
+const orbitPathGeometry = new THREE.BufferGeometry().setFromPoints(orbitPathPoints);
+const orbitPathMaterial = new THREE.LineBasicMaterial({ color: 0xffaaaa, transparent: true, opacity: 0.4 });
+const orbitPath = new THREE.LineLoop(orbitPathGeometry, orbitPathMaterial);
+orbitGroup.add(orbitPath);
+
+// Position satellite and add to revolution group
 satellite.position.set(orbitRadius, 0, 0);
-orbitGroup.add(satellite);
+satelliteOrbit.add(satellite);
+orbitGroup.add(satelliteOrbit);
 
 // Tilt orbit to approximate sun-synchronous polar orbit (~98 degrees)
-orbitGroup.rotation.z = THREE.MathUtils.degToRad(98);
+orbitGroup.rotation.x = THREE.MathUtils.degToRad(98);
 scene.add(orbitGroup);
 
 // Camera position
@@ -50,7 +66,7 @@ function animate() {
   const elapsed = clock.getElapsedTime();
 
   // Satellite orbit
-  orbitGroup.rotation.y = (elapsed / orbitPeriod) * Math.PI * 2;
+  satelliteOrbit.rotation.y = (elapsed / orbitPeriod) * Math.PI * 2;
 
   // Earth rotation
   earth.rotation.y = (elapsed / earthRotationPeriod) * Math.PI * 2;
