@@ -1,4 +1,5 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -6,6 +7,17 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+
+// Camera controls
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enablePan = false;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+controls.update();
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -71,6 +83,7 @@ function animate() {
   // Earth rotation
   earth.rotation.y = (elapsed / earthRotationPeriod) * Math.PI * 2;
 
+  controls.update();
   renderer.render(scene, camera);
 }
 
