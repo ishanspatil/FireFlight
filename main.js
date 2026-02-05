@@ -13,6 +13,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
+const statusPill = document.getElementById('status-pill');
+
 // Camera controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
@@ -24,13 +26,10 @@ controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
 // Lighting
-scene.add(new THREE.AmbientLight(0x8ea0c8, 0.25));
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
-keyLight.position.set(7, 4, 7);
-scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(0x8ab0ff, 0.35);
-fillLight.position.set(-5, -2, -3);
-scene.add(fillLight);
+scene.add(new THREE.AmbientLight(0x1d304f, 0.1));
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+sunLight.position.set(10, 2, 3);
+scene.add(sunLight);
 
 function loadTexture(url, { color = false } = {}) {
   const loader = new THREE.TextureLoader();
@@ -105,6 +104,30 @@ scene.add(orbitGroup);
 
 camera.position.set(0, 1.2, 4.8);
 
+const satelliteWorldPosition = new THREE.Vector3();
+const sunDirection = new THREE.Vector3();
+let currentStatus = '';
+
+function updateSatelliteStatus() {
+  satellite.getWorldPosition(satelliteWorldPosition);
+  sunDirection.copy(sunLight.position).normalize();
+
+  const isSunFacing = satelliteWorldPosition.dot(sunDirection) > 0;
+  const nextStatus = isSunFacing ? 'charging' : 'eclipse';
+
+  if (nextStatus !== currentStatus) {
+    currentStatus = nextStatus;
+
+    if (nextStatus === 'charging') {
+      statusPill.textContent = 'Charging ⚡️';
+      statusPill.className = 'charging';
+    } else {
+      statusPill.textContent = 'Eclipse 🌑';
+      statusPill.className = 'eclipse';
+    }
+  }
+}
+
 // Animation
 const clock = new THREE.Clock();
 const orbitPeriod = 10;
@@ -119,6 +142,7 @@ function animate() {
     earth.rotation.y = (elapsed / earthRotationPeriod) * Math.PI * 2;
   }
 
+  updateSatelliteStatus();
   controls.update();
   renderer.render(scene, camera);
 }
