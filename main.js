@@ -50,71 +50,8 @@ function loadTexture(url, { color = false } = {}) {
   });
 }
 
-function buildOutlineTextureFromDiffuse(diffuseTexture) {
-  const source = diffuseTexture.image;
-  const w = source.width;
-  const h = source.height;
-
-  const srcCanvas = document.createElement('canvas');
-  srcCanvas.width = w;
-  srcCanvas.height = h;
-  const srcCtx = srcCanvas.getContext('2d');
-  srcCtx.drawImage(source, 0, 0, w, h);
-  const srcData = srcCtx.getImageData(0, 0, w, h).data;
-
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = w;
-  outCanvas.height = h;
-  const outCtx = outCanvas.getContext('2d');
-  const outImage = outCtx.createImageData(w, h);
-
-  const landMask = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const r = srcData[i];
-      const g = srcData[i + 1];
-      const b = srcData[i + 2];
-
-      // Ocean tends to be blue dominant in satellite Earth maps.
-      const isOcean = b > g + 8 && b > r + 18;
-      landMask[y * w + x] = isOcean ? 0 : 1;
-    }
-  }
-
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const idx = y * w + x;
-      const here = landMask[idx];
-      if (!here) continue;
-
-      const edge =
-        landMask[idx - 1] === 0 ||
-        landMask[idx + 1] === 0 ||
-        landMask[idx - w] === 0 ||
-        landMask[idx + w] === 0;
-
-      if (edge) {
-        const o = idx * 4;
-        outImage.data[o] = 236;
-        outImage.data[o + 1] = 244;
-        outImage.data[o + 2] = 255;
-        outImage.data[o + 3] = 200;
-      }
-    }
-  }
-
-  outCtx.putImageData(outImage, 0, 0);
-  const texture = new THREE.CanvasTexture(outCanvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return texture;
-}
-
 const earthRadius = 1;
 let earth;
-let outlines;
 
 async function setupEarth() {
   // Real satellite textures (actual space-view pixel colors)
@@ -136,18 +73,6 @@ async function setupEarth() {
 
   earth = new THREE.Mesh(earthGeometry, earthMaterial);
   scene.add(earth);
-
-  const outlineTexture = buildOutlineTextureFromDiffuse(diffuse);
-  const outlineGeometry = new THREE.SphereGeometry(earthRadius + 0.0075, 128, 128);
-  const outlineMaterial = new THREE.MeshBasicMaterial({
-    map: outlineTexture,
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-  });
-  outlines = new THREE.Mesh(outlineGeometry, outlineMaterial);
-  scene.add(outlines);
 }
 
 // Satellite
@@ -192,7 +117,6 @@ function animate() {
   satelliteOrbit.rotation.y = (elapsed / orbitPeriod) * Math.PI * 2;
   if (earth) {
     earth.rotation.y = (elapsed / earthRotationPeriod) * Math.PI * 2;
-    if (outlines) outlines.rotation.y = earth.rotation.y;
   }
 
   controls.update();
