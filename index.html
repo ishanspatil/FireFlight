@@ -12,7 +12,14 @@
     }
   </script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
     canvas { display: block; }
 
     #status-pill {
@@ -43,10 +50,16 @@
       background: rgba(255, 146, 146, 0.95);
       border-color: #b53333;
     }
+
+    #status-pill.imaging {
+      color: #00385e;
+      background: rgba(165, 218, 255, 0.95);
+      border-color: #2b75b6;
+    }
   </style>
 </head>
 <body>
-  <div id="status-pill" class="charging">Charging ⚡️</div>
+  <div id="status-pill" class="charging">Charging ☀️</div>
   <script type="module" src="main.js"></script>
 </body>
 </html>
