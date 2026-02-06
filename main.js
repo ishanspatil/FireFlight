@@ -24,6 +24,8 @@ controls.enablePan = false;
 controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
 controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+controls.touches.ONE = THREE.TOUCH.PAN;
+controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
 // Lighting
 scene.add(new THREE.AmbientLight(0x1d304f, 0.1));
@@ -107,26 +109,71 @@ camera.position.set(0, 1.2, 4.8);
 const satelliteWorldPosition = new THREE.Vector3();
 const sunDirection = new THREE.Vector3();
 let currentStatus = '';
+let isImaging = false;
+let isSunFacing = false;
+
+function updateStatusPill(nextStatus) {
+  if (nextStatus === currentStatus) return;
+
+  currentStatus = nextStatus;
+
+  if (nextStatus === 'imaging') {
+    statusPill.textContent = 'Imaging 🌎';
+    statusPill.className = 'imaging';
+  } else if (nextStatus === 'charging') {
+    statusPill.textContent = 'Charging ☀️';
+    statusPill.className = 'charging';
+  } else {
+    statusPill.textContent = 'Eclipse 🌑';
+    statusPill.className = 'eclipse';
+  }
+}
 
 function updateSatelliteStatus() {
   satellite.getWorldPosition(satelliteWorldPosition);
   sunDirection.copy(sunLight.position).normalize();
 
-  const isSunFacing = satelliteWorldPosition.dot(sunDirection) > 0;
-  const nextStatus = isSunFacing ? 'charging' : 'eclipse';
+  isSunFacing = satelliteWorldPosition.dot(sunDirection) > 0;
 
-  if (nextStatus !== currentStatus) {
-    currentStatus = nextStatus;
+  if (isImaging && isSunFacing) {
+    updateStatusPill('imaging');
+    return;
+  }
 
-    if (nextStatus === 'charging') {
-      statusPill.textContent = 'Charging ⚡️';
-      statusPill.className = 'charging';
-    } else {
-      statusPill.textContent = 'Eclipse 🌑';
-      statusPill.className = 'eclipse';
-    }
+  updateStatusPill(isSunFacing ? 'charging' : 'eclipse');
+}
+
+function setImagingState(nextImagingState) {
+  if (isImaging === nextImagingState) return;
+  isImaging = nextImagingState;
+  updateSatelliteStatus();
+}
+
+function onHoldStart(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+  event.preventDefault();
+  controls.enabled = false;
+
+  if (isSunFacing) {
+    setImagingState(true);
   }
 }
+
+function onHoldEnd(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+  controls.enabled = true;
+  setImagingState(false);
+}
+
+renderer.domElement.addEventListener('pointerdown', onHoldStart);
+window.addEventListener('pointerup', onHoldEnd);
+window.addEventListener('pointercancel', onHoldEnd);
+window.addEventListener('blur', () => {
+  controls.enabled = true;
+  setImagingState(false);
+});
 
 // Animation
 const clock = new THREE.Clock();
