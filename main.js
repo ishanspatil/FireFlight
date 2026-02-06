@@ -111,7 +111,7 @@ const sunDirection = new THREE.Vector3();
 let currentStatus = '';
 let isImaging = false;
 let isSunFacing = false;
-const longPressDurationMs = 500;
+const longPressDurationMs = 300;
 const longPressMoveTolerance = 8;
 let longPressTimerId = null;
 let activePointerId = null;
@@ -218,8 +218,8 @@ window.addEventListener('blur', () => {
 
 // Animation
 const clock = new THREE.Clock();
-const orbitPeriod = 10;
-const earthRotationPeriod = 55;
+const orbitPeriod = 20;
+const earthRotationPeriod = 110;
 
 function animate() {
   requestAnimationFrame(animate);
