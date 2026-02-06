@@ -20,7 +20,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.enablePan = false;
+controls.enablePan = true;
 controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
 controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
@@ -111,6 +111,11 @@ const sunDirection = new THREE.Vector3();
 let currentStatus = '';
 let isImaging = false;
 let isSunFacing = false;
+const longPressDurationMs = 1000;
+const longPressMoveTolerance = 8;
+let longPressTimerId = null;
+let activePointerId = null;
+let pressStartPosition = null;
 
 function updateStatusPill(nextStatus) {
   if (nextStatus === currentStatus) return;
@@ -149,29 +154,65 @@ function setImagingState(nextImagingState) {
   updateSatelliteStatus();
 }
 
+function startLongPress(pointerId) {
+  clearLongPress();
+
+  longPressTimerId = window.setTimeout(() => {
+    if (activePointerId !== pointerId) return;
+
+    if (isSunFacing) {
+      setImagingState(true);
+    }
+  }, longPressDurationMs);
+}
+
+function clearLongPress() {
+  if (longPressTimerId !== null) {
+    window.clearTimeout(longPressTimerId);
+    longPressTimerId = null;
+  }
+}
+
+function clearPointerTracking() {
+  activePointerId = null;
+  pressStartPosition = null;
+}
+
 function onHoldStart(event) {
   if (event.pointerType === 'mouse' && event.button !== 0) return;
 
-  event.preventDefault();
-  controls.enabled = false;
-
-  if (isSunFacing) {
-    setImagingState(true);
-  }
+  activePointerId = event.pointerId;
+  pressStartPosition = { x: event.clientX, y: event.clientY };
+  startLongPress(event.pointerId);
 }
 
 function onHoldEnd(event) {
   if (event.pointerType === 'mouse' && event.button !== 0) return;
+  if (event.pointerId !== activePointerId) return;
 
-  controls.enabled = true;
+  clearLongPress();
+  clearPointerTracking();
+
   setImagingState(false);
 }
 
+function onHoldMove(event) {
+  if (event.pointerId !== activePointerId || !pressStartPosition) return;
+
+  const deltaX = event.clientX - pressStartPosition.x;
+  const deltaY = event.clientY - pressStartPosition.y;
+  if ((deltaX * deltaX) + (deltaY * deltaY) > longPressMoveTolerance * longPressMoveTolerance) {
+    clearLongPress();
+  }
+}
+
 renderer.domElement.addEventListener('pointerdown', onHoldStart);
+window.addEventListener('pointermove', onHoldMove);
 window.addEventListener('pointerup', onHoldEnd);
 window.addEventListener('pointercancel', onHoldEnd);
 window.addEventListener('blur', () => {
-  controls.enabled = true;
+  clearLongPress();
+  clearPointerTracking();
   setImagingState(false);
 });
 
