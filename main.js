@@ -20,11 +20,11 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.enablePan = true;
-controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
-controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-controls.touches.ONE = THREE.TOUCH.PAN;
+controls.enablePan = false;
+controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
 // Lighting
@@ -111,7 +111,7 @@ const sunDirection = new THREE.Vector3();
 let currentStatus = '';
 let isImaging = false;
 let isSunFacing = false;
-const longPressDurationMs = 1000;
+const longPressDurationMs = 500;
 const longPressMoveTolerance = 8;
 let longPressTimerId = null;
 let activePointerId = null;
