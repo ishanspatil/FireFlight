@@ -14,6 +14,10 @@ renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
 const statusPill = document.getElementById('status-pill');
+const imagingSummary = document.getElementById('imaging-summary');
+const historyToggle = document.getElementById('history-toggle');
+const historyPanel = document.getElementById('history-panel');
+const historyList = document.getElementById('history-list');
 
 // Camera controls
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -107,6 +111,7 @@ scene.add(orbitGroup);
 camera.position.set(0, 1.2, 4.8);
 
 const satelliteWorldPosition = new THREE.Vector3();
+const satelliteEarthLocalDirection = new THREE.Vector3();
 const sunDirection = new THREE.Vector3();
 let currentStatus = '';
 let isImaging = false;
@@ -116,6 +121,9 @@ const longPressMoveTolerance = 8;
 let longPressTimerId = null;
 let activePointerId = null;
 let pressStartPosition = null;
+let activeImagingSession = null;
+let lastSession = null;
+const imagingHistory = [];
 
 function updateStatusPill(nextStatus) {
   if (nextStatus === currentStatus) return;
@@ -132,6 +140,141 @@ function updateStatusPill(nextStatus) {
     statusPill.textContent = 'Eclipse 🌑';
     statusPill.className = 'eclipse';
   }
+}
+
+function getSubSatelliteCoordinates() {
+  if (!earth) return null;
+
+  satellite.getWorldPosition(satelliteWorldPosition);
+  satelliteEarthLocalDirection.copy(satelliteWorldPosition);
+  earth.worldToLocal(satelliteEarthLocalDirection);
+  satelliteEarthLocalDirection.normalize();
+
+  const lat = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(satelliteEarthLocalDirection.y, -1, 1)));
+  const lon = THREE.MathUtils.radToDeg(Math.atan2(satelliteEarthLocalDirection.z, satelliteEarthLocalDirection.x));
+
+  return { lat, lon };
+}
+
+function formatCoordinates(coords) {
+  if (!coords) return 'Unknown';
+  const latSuffix = coords.lat >= 0 ? 'N' : 'S';
+  const lonSuffix = coords.lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(coords.lat).toFixed(2)}°${latSuffix}, ${Math.abs(coords.lon).toFixed(2)}°${lonSuffix}`;
+}
+
+function formatDateTime(isoDate) {
+  return new Date(isoDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function renderSummary(session) {
+  if (!session) {
+    imagingSummary.textContent = 'No imaging sessions yet.';
+    return;
+  }
+
+  imagingSummary.innerHTML = [
+    `<div>Start: <strong>${formatCoordinates(session.startCoords)}</strong></div>`,
+    `<div>End: <strong>${formatCoordinates(session.endCoords)}</strong></div>`,
+    `<div>Area: <strong>${session.location || 'Resolving location...'}</strong></div>`
+  ].join('');
+}
+
+function renderHistory() {
+  if (imagingHistory.length === 0) {
+    historyList.innerHTML = '<li>No history yet.</li>';
+    return;
+  }
+
+  historyList.innerHTML = imagingHistory
+    .slice()
+    .reverse()
+    .map((entry) => `
+      <li>
+        <div><strong>${formatDateTime(entry.startedAt)}</strong> — ${entry.location || 'Resolving location...'}</div>
+        <div>Start: ${formatCoordinates(entry.startCoords)}</div>
+        <div>End: ${formatCoordinates(entry.endCoords)}</div>
+      </li>
+    `)
+    .join('');
+}
+
+async function resolveRoughLocation(coords) {
+  if (!coords) return 'Unknown region, Unknown country';
+
+  try {
+    const query = new URLSearchParams({
+      lat: coords.lat.toFixed(6),
+      lon: coords.lon.toFixed(6),
+      format: 'jsonv2',
+      zoom: '5'
+    });
+
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`, {
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Location lookup failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const address = data.address || {};
+    const region = address.state || address.region || address.county || address.province || 'Unknown region';
+    const country = address.country || 'Unknown country';
+
+    return `${region}, ${country}`;
+  } catch (error) {
+    console.warn('Could not resolve rough location:', error);
+    return 'Open ocean, International Waters';
+  }
+}
+
+function beginImagingSession() {
+  const startCoords = getSubSatelliteCoordinates();
+  activeImagingSession = {
+    id: crypto.randomUUID(),
+    startedAt: new Date().toISOString(),
+    startCoords,
+    endCoords: startCoords,
+    location: 'Resolving location...'
+  };
+
+  renderSummary(activeImagingSession);
+}
+
+function updateImagingSession() {
+  if (!activeImagingSession) return;
+
+  activeImagingSession.endCoords = getSubSatelliteCoordinates();
+  renderSummary(activeImagingSession);
+}
+
+async function completeImagingSession() {
+  if (!activeImagingSession) return;
+
+  activeImagingSession.endedAt = new Date().toISOString();
+  activeImagingSession.endCoords = getSubSatelliteCoordinates();
+
+  const finalizedSession = { ...activeImagingSession };
+  activeImagingSession = null;
+
+  lastSession = finalizedSession;
+  imagingHistory.push(finalizedSession);
+
+  renderSummary(lastSession);
+  renderHistory();
+
+  const resolvedLocation = await resolveRoughLocation(finalizedSession.endCoords);
+  finalizedSession.location = resolvedLocation;
+
+  if (lastSession && lastSession.id === finalizedSession.id) {
+    renderSummary(finalizedSession);
+  }
+
+  renderHistory();
 }
 
 function updateSatelliteStatus() {
@@ -151,6 +294,13 @@ function updateSatelliteStatus() {
 function setImagingState(nextImagingState) {
   if (isImaging === nextImagingState) return;
   isImaging = nextImagingState;
+
+  if (isImaging) {
+    beginImagingSession();
+  } else {
+    completeImagingSession();
+  }
+
   updateSatelliteStatus();
 }
 
@@ -216,6 +366,13 @@ window.addEventListener('blur', () => {
   setImagingState(false);
 });
 
+historyToggle.addEventListener('click', () => {
+  historyPanel.classList.toggle('open');
+});
+
+renderSummary(null);
+renderHistory();
+
 // Animation
 const clock = new THREE.Clock();
 const orbitPeriod = 20;
@@ -231,6 +388,7 @@ function animate() {
   }
 
   updateSatelliteStatus();
+  updateImagingSession();
   controls.update();
   renderer.render(scene, camera);
 }
