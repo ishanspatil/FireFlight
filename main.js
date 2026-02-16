@@ -158,6 +158,9 @@ camera.position.set(0, 1.2, 4.8);
 const satelliteWorldPosition = new THREE.Vector3();
 const satelliteEarthLocalDirection = new THREE.Vector3();
 const sunDirection = new THREE.Vector3();
+const tempVectorA = new THREE.Vector3();
+const tempVectorB = new THREE.Vector3();
+const tempVectorC = new THREE.Vector3();
 let currentStatus = 'charging';
 let isImaging = false;
 let isSunFacing = false;
@@ -169,6 +172,38 @@ let pressStartPosition = null;
 let activeImagingSession = null;
 let lastSession = null;
 const imagingHistory = [];
+const earthMeanRadiusKm = 6371;
+const halfSwathWidthKm = 50;
+const halfSwathAngleRad = halfSwathWidthKm / earthMeanRadiusKm;
+
+const lightConeMaterial = new THREE.MeshBasicMaterial({
+  color: 0x4ea6ff,
+  transparent: true,
+  opacity: 0.28,
+  side: THREE.DoubleSide,
+  depthWrite: false
+});
+const lightConeGeometry = new THREE.ConeGeometry(1, 1, 48, 1, true);
+const lightConeMesh = new THREE.Mesh(lightConeGeometry, lightConeMaterial);
+lightConeMesh.visible = false;
+scene.add(lightConeMesh);
+
+const traceMaterial = new THREE.MeshBasicMaterial({
+  color: 0x4ea6ff,
+  transparent: true,
+  opacity: 0.3,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  polygonOffsetUnits: -1
+});
+const activeTraceMesh = new THREE.Mesh(new THREE.BufferGeometry(), traceMaterial.clone());
+activeTraceMesh.visible = false;
+scene.add(activeTraceMesh);
+
+const fadingTraceMeshes = [];
+const traceFadeDurationMs = 10000;
 
 statusPill.addEventListener('animationend', () => {
   statusPill.classList.remove('pulse');
@@ -214,6 +249,111 @@ function formatCoordinates(coords) {
   return `${Math.abs(coords.lat).toFixed(2)}°${latSuffix}, ${Math.abs(coords.lon).toFixed(2)}°${lonSuffix}`;
 }
 
+function vectorToLatLon(vec) {
+  const normal = vec.clone().normalize();
+  return {
+    lat: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(normal.y, -1, 1))),
+    lon: THREE.MathUtils.radToDeg(Math.atan2(normal.z, normal.x))
+  };
+}
+
+function latLonToSurfaceVector(coords, radius = earthRadius) {
+  const latRad = THREE.MathUtils.degToRad(coords.lat);
+  const lonRad = THREE.MathUtils.degToRad(coords.lon);
+  const cosLat = Math.cos(latRad);
+  return new THREE.Vector3(
+    radius * cosLat * Math.cos(lonRad),
+    radius * Math.sin(latRad),
+    radius * cosLat * Math.sin(lonRad)
+  );
+}
+
+function getImagingFootprint(startCoords, endCoords) {
+  if (!startCoords || !endCoords) return null;
+
+  const startNormal = latLonToSurfaceVector(startCoords, 1).normalize();
+  const endNormal = latLonToSurfaceVector(endCoords, 1).normalize();
+  const greatCircleAxis = tempVectorA.copy(startNormal).cross(endNormal);
+
+  if (greatCircleAxis.lengthSq() < 1e-8) {
+    return null;
+  }
+
+  greatCircleAxis.normalize();
+
+  const startAlongTrack = tempVectorB.copy(greatCircleAxis).cross(startNormal).normalize();
+  const endAlongTrack = tempVectorC.copy(greatCircleAxis).cross(endNormal).normalize();
+
+  const startCrossTrack = new THREE.Vector3().copy(startAlongTrack).cross(startNormal).normalize();
+  const endCrossTrack = new THREE.Vector3().copy(endAlongTrack).cross(endNormal).normalize();
+
+  const startLeft = startNormal.clone().multiplyScalar(Math.cos(halfSwathAngleRad)).addScaledVector(startCrossTrack, Math.sin(halfSwathAngleRad)).normalize();
+  const startRight = startNormal.clone().multiplyScalar(Math.cos(halfSwathAngleRad)).addScaledVector(startCrossTrack, -Math.sin(halfSwathAngleRad)).normalize();
+  const endLeft = endNormal.clone().multiplyScalar(Math.cos(halfSwathAngleRad)).addScaledVector(endCrossTrack, Math.sin(halfSwathAngleRad)).normalize();
+  const endRight = endNormal.clone().multiplyScalar(Math.cos(halfSwathAngleRad)).addScaledVector(endCrossTrack, -Math.sin(halfSwathAngleRad)).normalize();
+
+  const corners = [startLeft, startRight, endRight, endLeft].map((normal) => normal.multiplyScalar(earthRadius * 1.0015));
+
+  return {
+    corners,
+    centerStart: vectorToLatLon(startNormal),
+    centerEnd: vectorToLatLon(endNormal)
+  };
+}
+
+function updateTraceMesh(mesh, footprint) {
+  if (!footprint) {
+    mesh.visible = false;
+    return;
+  }
+
+  const [a, b, c, d] = footprint.corners;
+  const positions = new Float32Array([
+    a.x, a.y, a.z,
+    b.x, b.y, b.z,
+    c.x, c.y, c.z,
+    a.x, a.y, a.z,
+    c.x, c.y, c.z,
+    d.x, d.y, d.z
+  ]);
+
+  const geometry = mesh.geometry;
+  geometry.dispose();
+  mesh.geometry = new THREE.BufferGeometry();
+  mesh.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  mesh.geometry.computeVertexNormals();
+  mesh.visible = true;
+}
+
+function updateLightCone(targetCoords) {
+  if (!isImaging || !targetCoords) {
+    lightConeMesh.visible = false;
+    return;
+  }
+
+  const targetWorld = latLonToSurfaceVector(targetCoords, earthRadius);
+  const satWorld = satellite.getWorldPosition(new THREE.Vector3());
+  const axis = targetWorld.clone().sub(satWorld);
+  const height = axis.length();
+
+  if (height <= 1e-6) {
+    lightConeMesh.visible = false;
+    return;
+  }
+
+  const coneRadius = (halfSwathWidthKm / earthMeanRadiusKm) * earthRadius;
+  lightConeMesh.scale.set(coneRadius, height, coneRadius);
+
+  const midpoint = satWorld.clone().add(targetWorld).multiplyScalar(0.5);
+  lightConeMesh.position.copy(midpoint);
+
+  const up = new THREE.Vector3(0, 1, 0);
+  lightConeMesh.quaternion.setFromUnitVectors(up, axis.clone().normalize());
+  lightConeMesh.rotateX(Math.PI);
+
+  lightConeMesh.visible = true;
+}
+
 function formatDateTime(isoDate) {
   return new Date(isoDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -225,8 +365,8 @@ function renderSummary(session) {
   }
 
   imagingSummary.innerHTML = [
-    `<div>Start: <strong>${formatCoordinates(session.startCoords)}</strong></div>`,
-    `<div>End: <strong>${formatCoordinates(session.endCoords)}</strong></div>`,
+    `<div>Start CenterPoint: <strong>${formatCoordinates(session.startCoords)}</strong></div>`,
+    `<div>End CenterPoint: <strong>${formatCoordinates(session.endCoords)}</strong></div>`,
     `<div>Area: <strong>${session.location || 'Resolving location...'}</strong></div>`
   ].join('');
 }
@@ -243,8 +383,8 @@ function renderHistory() {
     .map((entry) => `
       <li>
         <div><strong>${formatDateTime(entry.startedAt)}</strong> — ${entry.location || 'Resolving location...'}</div>
-        <div>Start: ${formatCoordinates(entry.startCoords)}</div>
-        <div>End: ${formatCoordinates(entry.endCoords)}</div>
+        <div>Start CenterPoint: ${formatCoordinates(entry.startCoords)}</div>
+        <div>End CenterPoint: ${formatCoordinates(entry.endCoords)}</div>
       </li>
     `)
     .join('');
@@ -283,6 +423,24 @@ async function resolveRoughLocation(coords) {
   }
 }
 
+async function resolveImageAreaLocation(footprint) {
+  if (!footprint) return 'Unknown imaged region';
+
+  const coordsToCheck = [
+    footprint.centerStart,
+    footprint.centerEnd,
+    ...footprint.corners.map((corner) => vectorToLatLon(corner))
+  ];
+
+  const samples = await Promise.all(coordsToCheck.map((coords) => resolveRoughLocation(coords)));
+  const uniqueRegions = [...new Set(samples.filter(Boolean))];
+
+  if (uniqueRegions.length === 0) return 'Open ocean, International Waters';
+  if (uniqueRegions.length === 1) return uniqueRegions[0];
+
+  return `${uniqueRegions.slice(0, 3).join(' · ')}${uniqueRegions.length > 3 ? ' · +' + (uniqueRegions.length - 3) + ' more' : ''}`;
+}
+
 function beginImagingSession() {
   const startCoords = getSubSatelliteCoordinates();
   activeImagingSession = {
@@ -290,7 +448,8 @@ function beginImagingSession() {
     startedAt: new Date().toISOString(),
     startCoords,
     endCoords: startCoords,
-    location: 'Resolving location...'
+    location: 'Resolving location...',
+    footprint: null
   };
 
   renderSummary(activeImagingSession);
@@ -300,6 +459,9 @@ function updateImagingSession() {
   if (!activeImagingSession) return;
 
   activeImagingSession.endCoords = getSubSatelliteCoordinates();
+  activeImagingSession.footprint = getImagingFootprint(activeImagingSession.startCoords, activeImagingSession.endCoords);
+  updateTraceMesh(activeTraceMesh, activeImagingSession.footprint);
+  updateLightCone(activeImagingSession.endCoords);
   renderSummary(activeImagingSession);
 }
 
@@ -308,9 +470,20 @@ async function completeImagingSession() {
 
   activeImagingSession.endedAt = new Date().toISOString();
   activeImagingSession.endCoords = getSubSatelliteCoordinates();
+  activeImagingSession.footprint = getImagingFootprint(activeImagingSession.startCoords, activeImagingSession.endCoords);
 
   const finalizedSession = { ...activeImagingSession };
   activeImagingSession = null;
+
+  if (finalizedSession.footprint) {
+    const fadedMesh = new THREE.Mesh(activeTraceMesh.geometry.clone(), traceMaterial.clone());
+    fadedMesh.material.opacity = 0.3;
+    scene.add(fadedMesh);
+    fadingTraceMeshes.push({ mesh: fadedMesh, startedAtMs: performance.now() });
+  }
+
+  activeTraceMesh.visible = false;
+  lightConeMesh.visible = false;
 
   lastSession = finalizedSession;
   imagingHistory.push(finalizedSession);
@@ -318,7 +491,7 @@ async function completeImagingSession() {
   renderSummary(lastSession);
   renderHistory();
 
-  const resolvedLocation = await resolveRoughLocation(finalizedSession.endCoords);
+  const resolvedLocation = await resolveImageAreaLocation(finalizedSession.footprint);
   finalizedSession.location = resolvedLocation;
 
   if (lastSession && lastSession.id === finalizedSession.id) {
@@ -342,12 +515,31 @@ function updateSatelliteStatus() {
   updateStatusPill(isSunFacing ? 'charging' : 'eclipse');
 }
 
+function updateFadingTraces() {
+  const now = performance.now();
+
+  for (let i = fadingTraceMeshes.length - 1; i >= 0; i--) {
+    const trace = fadingTraceMeshes[i];
+    const elapsed = now - trace.startedAtMs;
+    const t = THREE.MathUtils.clamp(elapsed / traceFadeDurationMs, 0, 1);
+    trace.mesh.material.opacity = 0.3 * (1 - t);
+
+    if (t >= 1) {
+      scene.remove(trace.mesh);
+      trace.mesh.geometry.dispose();
+      trace.mesh.material.dispose();
+      fadingTraceMeshes.splice(i, 1);
+    }
+  }
+}
+
 function setImagingState(nextImagingState) {
   if (isImaging === nextImagingState) return;
   isImaging = nextImagingState;
 
   if (isImaging) {
     beginImagingSession();
+    updateLightCone(activeImagingSession?.endCoords || null);
   } else {
     completeImagingSession();
   }
@@ -440,6 +632,7 @@ function animate() {
 
   updateSatelliteStatus();
   updateImagingSession();
+  updateFadingTraces();
   controls.update();
   renderer.render(scene, camera);
 }
