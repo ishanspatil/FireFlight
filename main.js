@@ -5,6 +5,28 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020615);
 
+// Star field
+const starCount = 2000;
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  const r = 60 + Math.random() * 140;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starPositions[i * 3 + 2] = r * Math.cos(phi);
+}
+const starGeometry = new THREE.BufferGeometry();
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starMaterial = new THREE.PointsMaterial({
+  color: 0xffffff,
+  size: 0.15,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.85
+});
+scene.add(new THREE.Points(starGeometry, starMaterial));
+
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -78,6 +100,29 @@ async function setupEarth() {
 
   earth = new THREE.Mesh(earthGeometry, earthMaterial);
   scene.add(earth);
+
+  // Atmosphere glow
+  const atmosphereGeo = new THREE.SphereGeometry(earthRadius * 1.12, 64, 64);
+  const atmosphereMat = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+        gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    transparent: true
+  });
+  scene.add(new THREE.Mesh(atmosphereGeo, atmosphereMat));
 }
 
 // Satellite
@@ -113,7 +158,7 @@ camera.position.set(0, 1.2, 4.8);
 const satelliteWorldPosition = new THREE.Vector3();
 const satelliteEarthLocalDirection = new THREE.Vector3();
 const sunDirection = new THREE.Vector3();
-let currentStatus = '';
+let currentStatus = 'charging';
 let isImaging = false;
 let isSunFacing = false;
 const longPressDurationMs = 300;
@@ -125,6 +170,10 @@ let activeImagingSession = null;
 let lastSession = null;
 const imagingHistory = [];
 
+statusPill.addEventListener('animationend', () => {
+  statusPill.classList.remove('pulse');
+});
+
 function updateStatusPill(nextStatus) {
   if (nextStatus === currentStatus) return;
 
@@ -132,14 +181,16 @@ function updateStatusPill(nextStatus) {
 
   if (nextStatus === 'imaging') {
     statusPill.textContent = 'Imaging 🌎';
-    statusPill.className = 'imaging';
   } else if (nextStatus === 'charging') {
     statusPill.textContent = 'Charging ☀️';
-    statusPill.className = 'charging';
   } else {
     statusPill.textContent = 'Eclipse 🌑';
-    statusPill.className = 'eclipse';
   }
+
+  // Apply state class and trigger pulse animation
+  statusPill.classList.remove('pulse');
+  void statusPill.offsetWidth;
+  statusPill.className = nextStatus + ' pulse';
 }
 
 function getSubSatelliteCoordinates() {
