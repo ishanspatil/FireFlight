@@ -28,6 +28,19 @@ const starMaterial = new THREE.PointsMaterial({
 scene.add(new THREE.Points(starGeometry, starMaterial));
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+if (!window.WebGLRenderingContext) {
+  const lo = document.getElementById('loading-overlay');
+  const eo = document.getElementById('error-overlay');
+  const et = document.getElementById('error-title');
+  const em = document.getElementById('error-message');
+  if (lo) lo.classList.add('hidden');
+  if (et) et.textContent = 'WebGL not supported';
+  if (em) em.textContent = 'Your browser or device does not support WebGL, which is required to run FireFlight.';
+  if (eo) eo.classList.add('visible');
+  throw new Error('WebGL not supported');
+}
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -35,11 +48,22 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
+const loadingOverlay = document.getElementById('loading-overlay');
+const errorOverlay = document.getElementById('error-overlay');
+const errorTitle = document.getElementById('error-title');
+const errorMessage = document.getElementById('error-message');
 const statusPill = document.getElementById('status-pill');
 const imagingSummary = document.getElementById('imaging-summary');
 const historyToggle = document.getElementById('history-toggle');
 const historyPanel = document.getElementById('history-panel');
 const historyList = document.getElementById('history-list');
+
+function showError(title, message) {
+  if (loadingOverlay) loadingOverlay.classList.add('hidden');
+  if (errorTitle) errorTitle.textContent = title;
+  if (errorMessage) errorMessage.textContent = message;
+  if (errorOverlay) errorOverlay.classList.add('visible');
+}
 
 // Camera controls
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -358,36 +382,58 @@ function formatDateTime(isoDate) {
   return new Date(isoDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+function createLabeledRow(label, value) {
+  const div = document.createElement('div');
+  div.append(label + ': ');
+  const strong = document.createElement('strong');
+  strong.textContent = value;
+  div.appendChild(strong);
+  return div;
+}
+
 function renderSummary(session) {
   if (!session) {
     imagingSummary.textContent = 'No imaging sessions yet.';
     return;
   }
 
-  imagingSummary.innerHTML = [
-    `<div>Start CenterPoint: <strong>${formatCoordinates(session.startCoords)}</strong></div>`,
-    `<div>End CenterPoint: <strong>${formatCoordinates(session.endCoords)}</strong></div>`,
-    `<div>Area: <strong>${session.location || 'Resolving location...'}</strong></div>`
-  ].join('');
+  imagingSummary.textContent = '';
+  imagingSummary.appendChild(createLabeledRow('Start CenterPoint', formatCoordinates(session.startCoords)));
+  imagingSummary.appendChild(createLabeledRow('End CenterPoint', formatCoordinates(session.endCoords)));
+  imagingSummary.appendChild(createLabeledRow('Area', session.location || 'Resolving location...'));
 }
 
 function renderHistory() {
+  historyList.textContent = '';
+
   if (imagingHistory.length === 0) {
-    historyList.innerHTML = '<li>No history yet.</li>';
+    const li = document.createElement('li');
+    li.textContent = 'No history yet.';
+    historyList.appendChild(li);
     return;
   }
 
-  historyList.innerHTML = imagingHistory
-    .slice()
-    .reverse()
-    .map((entry) => `
-      <li>
-        <div><strong>${formatDateTime(entry.startedAt)}</strong> — ${entry.location || 'Resolving location...'}</div>
-        <div>Start CenterPoint: ${formatCoordinates(entry.startCoords)}</div>
-        <div>End CenterPoint: ${formatCoordinates(entry.endCoords)}</div>
-      </li>
-    `)
-    .join('');
+  const entries = imagingHistory.slice().reverse();
+  for (const entry of entries) {
+    const li = document.createElement('li');
+
+    const header = document.createElement('div');
+    const timeStrong = document.createElement('strong');
+    timeStrong.textContent = formatDateTime(entry.startedAt);
+    header.appendChild(timeStrong);
+    header.append(` — ${entry.location || 'Resolving location...'}`);
+    li.appendChild(header);
+
+    const startDiv = document.createElement('div');
+    startDiv.textContent = `Start CenterPoint: ${formatCoordinates(entry.startCoords)}`;
+    li.appendChild(startDiv);
+
+    const endDiv = document.createElement('div');
+    endDiv.textContent = `End CenterPoint: ${formatCoordinates(entry.endCoords)}`;
+    li.appendChild(endDiv);
+
+    historyList.appendChild(li);
+  }
 }
 
 async function resolveRoughLocation(coords) {
@@ -401,11 +447,18 @@ async function resolveRoughLocation(coords) {
       zoom: '5'
     });
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`, {
       headers: {
-        Accept: 'application/json'
-      }
+        Accept: 'application/json',
+        'User-Agent': 'FireFlight-OrbitDemo/1.0 (https://github.com/ishanspatil/FireFlight)'
+      },
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Location lookup failed with status ${response.status}`);
@@ -609,20 +662,34 @@ window.addEventListener('blur', () => {
   setImagingState(false);
 });
 
+// Keyboard: hold Space to image when satellite is sunlit
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'Space' && !event.repeat && isSunFacing) {
+    event.preventDefault();
+    setImagingState(true);
+  }
+});
+window.addEventListener('keyup', (event) => {
+  if (event.code === 'Space') {
+    setImagingState(false);
+  }
+});
+
 historyToggle.addEventListener('click', () => {
-  historyPanel.classList.toggle('open');
+  const isOpen = historyPanel.classList.toggle('open');
+  historyToggle.setAttribute('aria-expanded', String(isOpen));
+  historyPanel.setAttribute('aria-hidden', String(!isOpen));
 });
 
 renderSummary(null);
 renderHistory();
 
-// Animation
+// Animation loop
 const clock = new THREE.Clock();
 const orbitPeriod = 20;
 const earthRotationPeriod = 110;
 
-function animate() {
-  requestAnimationFrame(animate);
+renderer.setAnimationLoop(() => {
   const elapsed = clock.getElapsedTime();
 
   satelliteOrbit.rotation.y = (elapsed / orbitPeriod) * Math.PI * 2;
@@ -635,16 +702,34 @@ function animate() {
   updateFadingTraces();
   controls.update();
   renderer.render(scene, camera);
-}
-
-setupEarth().catch((err) => {
-  console.error('Failed to load Earth textures:', err);
 });
 
-animate();
+setupEarth()
+  .then(() => {
+    if (loadingOverlay) {
+      loadingOverlay.classList.add('hidden');
+      loadingOverlay.addEventListener('transitionend', () => loadingOverlay.remove(), { once: true });
+    }
+  })
+  .catch((err) => {
+    console.error('Failed to load Earth textures:', err);
+    showError('Failed to load Earth', 'Could not fetch Earth textures. Check your connection and reload.');
+  });
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener('beforeunload', () => {
+  renderer.setAnimationLoop(null);
+  renderer.dispose();
+  scene.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((m) => m.dispose());
+    }
+  });
 });
