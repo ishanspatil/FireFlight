@@ -141,7 +141,10 @@ setupEarth()
   })
   .catch((err) => {
     console.error('Failed to load Earth textures:', err);
-    showError('Failed to load Earth', 'Could not fetch Earth textures. Check your connection and reload.');
+    showError(
+      'Failed to load Earth',
+      'Could not fetch Earth textures. Check your connection and reload.'
+    );
   });
 
 window.addEventListener('resize', () => {

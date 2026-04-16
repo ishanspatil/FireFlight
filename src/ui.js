@@ -52,8 +52,12 @@ export function renderSummary(session) {
     return;
   }
   imagingSummary.textContent = '';
-  imagingSummary.appendChild(createLabeledRow('Start CenterPoint', formatCoordinates(session.startCoords)));
-  imagingSummary.appendChild(createLabeledRow('End CenterPoint', formatCoordinates(session.endCoords)));
+  imagingSummary.appendChild(
+    createLabeledRow('Start CenterPoint', formatCoordinates(session.startCoords))
+  );
+  imagingSummary.appendChild(
+    createLabeledRow('End CenterPoint', formatCoordinates(session.endCoords))
+  );
   imagingSummary.appendChild(createLabeledRow('Area', session.location || 'Resolving location...'));
 }
 

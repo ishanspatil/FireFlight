@@ -1,48 +1,68 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>FireFlight — Earth Imaging Minigame</title>
-  <meta name="description" content="An interactive 3D satellite Earth-imaging minigame. Long-press to trigger imaging sessions while your satellite is in sunlight." />
-  <meta property="og:title" content="FireFlight — Earth Imaging Minigame" />
-  <meta property="og:description" content="Interactive 3D satellite Earth-imaging minigame built with Three.js." />
-  <meta property="og:type" content="website" />
-  <link rel="stylesheet" href="styles.css" />
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>FireFlight — Earth Imaging Minigame</title>
+    <meta
+      name="description"
+      content="An interactive 3D satellite Earth-imaging minigame. Long-press to trigger imaging sessions while your satellite is in sunlight."
+    />
+    <meta property="og:title" content="FireFlight — Earth Imaging Minigame" />
+    <meta
+      property="og:description"
+      content="Interactive 3D satellite Earth-imaging minigame built with Three.js."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+        }
       }
-    }
-  </script>
-</head>
-<body>
-  <div id="loading-overlay" role="status" aria-live="polite" aria-label="Loading Earth textures">
-    <div class="loader-spinner" aria-hidden="true"></div>
-    <span>Loading Earth…</span>
-  </div>
-  <div id="error-overlay" role="alert" aria-live="assertive">
-    <strong id="error-title">Something went wrong</strong>
-    <p id="error-message">Unable to initialise WebGL or load Earth textures.</p>
-  </div>
-  <div id="status-pill" class="charging" role="status" aria-live="polite" aria-atomic="true">Charging ☀️</div>
-  <div id="imaging-details">
-    <div class="title">Imaging Telemetry</div>
-    <div id="imaging-summary" aria-live="polite">No imaging sessions yet.</div>
-    <button id="history-toggle" type="button" aria-label="Toggle imaging history" aria-expanded="false" aria-controls="history-panel">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.05 4.95L6.64 18.36A9 9 0 1 0 13 3Zm-1 5h2v5.2l3 3-1.4 1.4L12 14V8Z"/>
-      </svg>
-    </button>
-  </div>
-  <aside id="history-panel" aria-label="Imaging history" aria-hidden="true">
-    <div class="title">Session History</div>
-    <ul id="history-list">
-      <li>No history yet.</li>
-    </ul>
-  </aside>
-  <script type="module" src="main.js"></script>
-</body>
+    </script>
+  </head>
+  <body>
+    <div id="loading-overlay" role="status" aria-live="polite" aria-label="Loading Earth textures">
+      <div class="loader-spinner" aria-hidden="true"></div>
+      <span>Loading Earth…</span>
+    </div>
+    <div id="error-overlay" role="alert" aria-live="assertive">
+      <strong id="error-title">Something went wrong</strong>
+      <p id="error-message">Unable to initialise WebGL or load Earth textures.</p>
+    </div>
+    <div id="status-pill" class="charging" role="status" aria-live="polite" aria-atomic="true">
+      Charging ☀️
+    </div>
+    <div id="imaging-details">
+      <div class="title">Imaging Telemetry</div>
+      <div id="imaging-summary" aria-live="polite">No imaging sessions yet.</div>
+      <button
+        id="history-toggle"
+        type="button"
+        aria-label="Toggle imaging history"
+        aria-expanded="false"
+        aria-controls="history-panel"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            fill="currentColor"
+            d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.05 4.95L6.64 18.36A9 9 0 1 0 13 3Zm-1 5h2v5.2l3 3-1.4 1.4L12 14V8Z"
+          />
+        </svg>
+      </button>
+    </div>
+    <aside id="history-panel" aria-label="Imaging history" aria-hidden="true">
+      <div class="title">Session History</div>
+      <ul id="history-list">
+        <li>No history yet.</li>
+      </ul>
+    </aside>
+    <script type="module" src="main.js"></script>
+  </body>
 </html>

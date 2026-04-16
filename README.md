@@ -50,13 +50,13 @@ npm run format:check # CI-style format check
 
 ## Controls
 
-| Action | Input |
-|--------|-------|
-| Rotate view | Left-click drag / single-finger drag |
-| Zoom | Scroll wheel / two-finger pinch |
-| Start imaging | Long-press (300 ms) on canvas **or** hold `Space` |
-| Stop imaging | Release press / release `Space` |
-| Toggle history | Click the clock icon in the telemetry panel |
+| Action         | Input                                             |
+| -------------- | ------------------------------------------------- |
+| Rotate view    | Left-click drag / single-finger drag              |
+| Zoom           | Scroll wheel / two-finger pinch                   |
+| Start imaging  | Long-press (300 ms) on canvas **or** hold `Space` |
+| Stop imaging   | Release press / release `Space`                   |
+| Toggle history | Click the clock icon in the telemetry panel       |
 
 Imaging only activates when the satellite is in sunlight (status pill shows **Charging**).
 
@@ -82,15 +82,15 @@ FireFlight/
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| 3D rendering | [Three.js](https://threejs.org/) 0.184 |
-| Camera controls | OrbitControls (Three.js addon) |
-| Geocoding | [OpenStreetMap Nominatim](https://nominatim.org/) |
-| Module loading | Native ES module importmap (no bundler) |
-| Linting | ESLint 9 (flat config) |
-| Formatting | Prettier 3 |
-| CI | GitHub Actions |
+| Layer           | Technology                                        |
+| --------------- | ------------------------------------------------- |
+| 3D rendering    | [Three.js](https://threejs.org/) 0.184            |
+| Camera controls | OrbitControls (Three.js addon)                    |
+| Geocoding       | [OpenStreetMap Nominatim](https://nominatim.org/) |
+| Module loading  | Native ES module importmap (no bundler)           |
+| Linting         | ESLint 9 (flat config)                            |
+| Formatting      | Prettier 3                                        |
+| CI              | GitHub Actions                                    |
 
 ---
 

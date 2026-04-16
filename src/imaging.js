@@ -36,10 +36,7 @@ const lightConeMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   depthWrite: false,
 });
-const lightConeMesh = new THREE.Mesh(
-  new THREE.ConeGeometry(1, 1, 48, 1, true),
-  lightConeMaterial
-);
+const lightConeMesh = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 48, 1, true), lightConeMaterial);
 lightConeMesh.visible = false;
 scene.add(lightConeMesh);
 
@@ -83,16 +80,32 @@ function getImagingFootprint(startCoords, endCoords) {
   const cos = Math.cos(HALF_SWATH_ANGLE_RAD);
   const sin = Math.sin(HALF_SWATH_ANGLE_RAD);
 
-  const startLeft = startNormal.clone().multiplyScalar(cos).addScaledVector(startCross, sin).normalize();
-  const startRight = startNormal.clone().multiplyScalar(cos).addScaledVector(startCross, -sin).normalize();
+  const startLeft = startNormal
+    .clone()
+    .multiplyScalar(cos)
+    .addScaledVector(startCross, sin)
+    .normalize();
+  const startRight = startNormal
+    .clone()
+    .multiplyScalar(cos)
+    .addScaledVector(startCross, -sin)
+    .normalize();
   const endLeft = endNormal.clone().multiplyScalar(cos).addScaledVector(endCross, sin).normalize();
-  const endRight = endNormal.clone().multiplyScalar(cos).addScaledVector(endCross, -sin).normalize();
+  const endRight = endNormal
+    .clone()
+    .multiplyScalar(cos)
+    .addScaledVector(endCross, -sin)
+    .normalize();
 
   const corners = [startLeft, startRight, endRight, endLeft].map((n) =>
     n.multiplyScalar(EARTH_RADIUS * 1.0015)
   );
 
-  return { corners, centerStart: vectorToLatLon(startNormal), centerEnd: vectorToLatLon(endNormal) };
+  return {
+    corners,
+    centerStart: vectorToLatLon(startNormal),
+    centerEnd: vectorToLatLon(endNormal),
+  };
 }
 
 function updateTraceMesh(mesh, footprint) {
@@ -102,8 +115,24 @@ function updateTraceMesh(mesh, footprint) {
   }
   const [a, b, c, d] = footprint.corners;
   const positions = new Float32Array([
-    a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z,
-    a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z,
+    a.x,
+    a.y,
+    a.z,
+    b.x,
+    b.y,
+    b.z,
+    c.x,
+    c.y,
+    c.z,
+    a.x,
+    a.y,
+    a.z,
+    c.x,
+    c.y,
+    c.z,
+    d.x,
+    d.y,
+    d.z,
   ]);
   mesh.geometry.dispose();
   mesh.geometry = new THREE.BufferGeometry();
@@ -130,10 +159,7 @@ function updateLightCone(targetCoords) {
   const coneRadius = (HALF_SWATH_WIDTH_KM / EARTH_MEAN_RADIUS_KM) * EARTH_RADIUS;
   lightConeMesh.scale.set(coneRadius, height, coneRadius);
   lightConeMesh.position.copy(satWorld.clone().add(targetWorld).multiplyScalar(0.5));
-  lightConeMesh.quaternion.setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    axis.clone().normalize()
-  );
+  lightConeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.clone().normalize());
   lightConeMesh.rotateX(Math.PI);
   lightConeMesh.visible = true;
 }
@@ -165,10 +191,7 @@ async function completeImagingSession() {
   activeImagingSession = null;
 
   if (finalized.footprint) {
-    const fadedMesh = new THREE.Mesh(
-      activeTraceMesh.geometry.clone(),
-      traceMaterial.clone()
-    );
+    const fadedMesh = new THREE.Mesh(activeTraceMesh.geometry.clone(), traceMaterial.clone());
     fadedMesh.material.opacity = 0.3;
     scene.add(fadedMesh);
     fadingTraceMeshes.push({ mesh: fadedMesh, startedAtMs: performance.now() });
