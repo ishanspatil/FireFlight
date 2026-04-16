@@ -1,0 +1,11 @@
+export const EARTH_RADIUS = 1;
+export const EARTH_MEAN_RADIUS_KM = 6371;
+export const HALF_SWATH_WIDTH_KM = 50;
+export const HALF_SWATH_ANGLE_RAD = HALF_SWATH_WIDTH_KM / EARTH_MEAN_RADIUS_KM;
+export const ORBIT_RADIUS = EARTH_RADIUS + 0.2;
+export const ORBIT_INCLINATION_DEG = 98;
+export const ORBIT_PERIOD_S = 20;
+export const EARTH_ROTATION_PERIOD_S = 110;
+export const LONG_PRESS_DURATION_MS = 300;
+export const LONG_PRESS_MOVE_TOLERANCE = 8;
+export const TRACE_FADE_DURATION_MS = 10000;
