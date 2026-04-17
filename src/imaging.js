@@ -53,12 +53,15 @@ const traceMaterial = new THREE.MeshBasicMaterial({
 });
 const activeTraceMesh = new THREE.Mesh(new THREE.BufferGeometry(), traceMaterial.clone());
 activeTraceMesh.visible = false;
+// Parented to Earth in setEarth() so the footprint stays locked to geography
+// as Earth rotates. Until then, park it in the scene.
 scene.add(activeTraceMesh);
 
 const fadingTraceMeshes = [];
 
 export function setEarth(earthMesh) {
   earth = earthMesh;
+  earth.add(activeTraceMesh);
 }
 
 function getImagingFootprint(startCoords, endCoords) {
@@ -141,26 +144,33 @@ function updateTraceMesh(mesh, footprint) {
   mesh.visible = true;
 }
 
-function updateLightCone(targetCoords) {
-  if (!isImaging || !targetCoords) {
+function updateLightCone() {
+  if (!isImaging) {
     lightConeMesh.visible = false;
     return;
   }
-  const targetWorld = latLonToSurfaceVector(targetCoords, EARTH_RADIUS);
+
   const satWorld = satellite.getWorldPosition(new THREE.Vector3());
-  const axis = targetWorld.clone().sub(satWorld);
-  const height = axis.length();
+  const satDistance = satWorld.length();
+  const height = satDistance - EARTH_RADIUS;
 
   if (height <= 1e-6) {
     lightConeMesh.visible = false;
     return;
   }
 
+  // Nadir = straight down from satellite toward Earth's center (origin)
+  const radialDir = satWorld.clone().normalize();
+  const surfacePoint = radialDir.clone().multiplyScalar(EARTH_RADIUS);
+  const midpoint = satWorld.clone().add(surfacePoint).multiplyScalar(0.5);
+
   const coneRadius = (HALF_SWATH_WIDTH_KM / EARTH_MEAN_RADIUS_KM) * EARTH_RADIUS;
   lightConeMesh.scale.set(coneRadius, height, coneRadius);
-  lightConeMesh.position.copy(satWorld.clone().add(targetWorld).multiplyScalar(0.5));
-  lightConeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.clone().normalize());
-  lightConeMesh.rotateX(Math.PI);
+  lightConeMesh.position.copy(midpoint);
+
+  // Cone's default +Y (tip) points outward from Earth along the radial direction;
+  // base sits at the surface, tip at the satellite.
+  lightConeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), radialDir);
   lightConeMesh.visible = true;
 }
 
@@ -193,7 +203,7 @@ async function completeImagingSession() {
   if (finalized.footprint) {
     const fadedMesh = new THREE.Mesh(activeTraceMesh.geometry.clone(), traceMaterial.clone());
     fadedMesh.material.opacity = 0.3;
-    scene.add(fadedMesh);
+    (earth ?? scene).add(fadedMesh);
     fadingTraceMeshes.push({ mesh: fadedMesh, startedAtMs: performance.now() });
   }
 
@@ -218,7 +228,7 @@ export function setImagingState(nextState) {
 
   if (isImaging) {
     beginImagingSession();
-    updateLightCone(activeImagingSession?.endCoords ?? null);
+    updateLightCone();
   } else {
     completeImagingSession();
   }
@@ -241,7 +251,7 @@ export function tickImaging() {
     activeImagingSession.endCoords
   );
   updateTraceMesh(activeTraceMesh, activeImagingSession.footprint);
-  updateLightCone(activeImagingSession.endCoords);
+  updateLightCone();
   renderSummary(activeImagingSession);
 }
 
@@ -252,7 +262,7 @@ export function tickFadingTraces() {
     const t = THREE.MathUtils.clamp((now - trace.startedAtMs) / TRACE_FADE_DURATION_MS, 0, 1);
     trace.mesh.material.opacity = 0.3 * (1 - t);
     if (t >= 1) {
-      scene.remove(trace.mesh);
+      trace.mesh.parent?.remove(trace.mesh);
       trace.mesh.geometry.dispose();
       trace.mesh.material.dispose();
       fadingTraceMeshes.splice(i, 1);
