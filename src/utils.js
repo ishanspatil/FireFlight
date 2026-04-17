@@ -20,7 +20,7 @@ export function vectorToLatLon(vec) {
   const normal = vec.clone().normalize();
   return {
     lat: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(normal.y, -1, 1))),
-    lon: THREE.MathUtils.radToDeg(Math.atan2(normal.z, normal.x)),
+    lon: THREE.MathUtils.radToDeg(Math.atan2(-normal.z, normal.x)),
   };
 }
 
@@ -31,6 +31,6 @@ export function latLonToSurfaceVector(coords, radius = EARTH_RADIUS) {
   return new THREE.Vector3(
     radius * cosLat * Math.cos(lonRad),
     radius * Math.sin(latRad),
-    radius * cosLat * Math.sin(lonRad)
+    -radius * cosLat * Math.sin(lonRad)
   );
 }
