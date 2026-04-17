@@ -44,7 +44,7 @@ export function getSubSatelliteCoordinates(earth) {
 
   return {
     lat: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(_localDir.y, -1, 1))),
-    lon: THREE.MathUtils.radToDeg(Math.atan2(_localDir.z, _localDir.x)),
+    lon: THREE.MathUtils.radToDeg(Math.atan2(-_localDir.z, _localDir.x)),
   };
 }
 
