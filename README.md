@@ -4,6 +4,8 @@ An interactive 3D Earth-imaging minigame. Pilot a satellite in a sun-synchronous
 
 Built with [Three.js](https://threejs.org/) — no build step required.
 
+**Live demo:** https://ishanspatil.github.io/FireFlight/ (deployed to GitHub Pages on every push to `main`)
+
 ---
 
 ## Features
